@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface SummaryModalProps {
@@ -15,7 +16,7 @@ const SummaryModal: React.FC<SummaryModalProps> = ({ isOpen, onClose, summary, t
         'Partially Compliant': { color: 'bg-status-partial', text: 'Partially Compliant' },
         'Non-Compliant': { color: 'bg-status-noncompliant', text: 'Non-Compliant' },
         'Not Applicable': { color: 'bg-slate-500', text: 'Not Applicable' },
-        'Unanswered': { color: 'bg-status-unanswered', text: 'Unanswered' },
+        'Not assessed': { color: 'bg-status-unanswered', text: 'Not assessed' },
     };
 
     return (

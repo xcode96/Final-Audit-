@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import type { Question, QuestionResponse, WorkflowStatus, ResultStatus, QuestionPriority } from '../types';
 
@@ -67,9 +68,16 @@ const QuestionAccordion: React.FC<QuestionAccordionProps> = ({ question, respons
             {isOpen && (
                 <div className="p-5 bg-dark-bg/50 border-t border-dark-border space-y-6">
                     <div>
-                        <h4 className="font-semibold text-indigo-400 mb-1">Description</h4>
-                        <p className="text-dark-text-secondary text-sm">{question.description}</p>
+                        <h4 className="font-semibold text-indigo-400 mb-1">Details / Description</h4>
+                        <p className="text-dark-text-secondary text-sm whitespace-pre-wrap">{question.description}</p>
                     </div>
+                    
+                    {question.evidenceGuidance && (
+                      <div>
+                        <h4 className="font-semibold text-indigo-400 mb-1">What to Show / Evidence</h4>
+                        <p className="text-dark-text-secondary text-sm whitespace-pre-wrap">{question.evidenceGuidance}</p>
+                      </div>
+                    )}
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -115,7 +123,7 @@ const QuestionAccordion: React.FC<QuestionAccordionProps> = ({ question, respons
                     </div>
                     
                     <div>
-                         <label htmlFor={`evidence-${question.text}`} className="block text-sm font-medium text-dark-text-secondary mb-1">Evidence</label>
+                         <label htmlFor={`evidence-${question.text}`} className="block text-sm font-medium text-dark-text-secondary mb-1">Evidence (Links/References)</label>
                          <textarea
                             id={`evidence-${question.text}`}
                             placeholder="Link to documents, screenshots, or other evidence..."
