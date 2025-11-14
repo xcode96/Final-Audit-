@@ -51,3 +51,25 @@ export interface Framework {
     icon: FC<{className?: string}>;
     sections: SectionData[];
 }
+
+// Types for GitHub Sync
+export interface GitHubSettings {
+    pat: string;
+    owner: string;
+    repo: string;
+}
+
+// Types for serialization (e.g., for GitHub Sync)
+export interface SerializableSectionData extends Omit<SectionData, 'icon'> {
+    iconName: string; 
+}
+
+export interface SerializableFramework extends Omit<Framework, 'icon' | 'sections'> {
+    iconName: string;
+    sections: SerializableSectionData[];
+}
+
+export interface SyncedData {
+    frameworks: SerializableFramework[];
+    responses: ResponseState;
+}

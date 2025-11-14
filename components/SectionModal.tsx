@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import Modal from '../Modal';
+import Modal from './Modal';
 import type { SectionData } from '../types';
 import { ShieldIcon, UsersIcon, LockIcon, CodeIcon, OperationIcon, FolderIcon, PeopleIcon, PhysicalSecurityIcon, TechnologicalIcon } from './icons';
 

@@ -1,28 +1,27 @@
-
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
-import type { SubSectionData } from '../types';
+import type { Framework } from '../types';
 
-interface SubSectionModalProps {
+interface FrameworkModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (data: Omit<SubSectionData, 'id' | 'questions'>) => void;
-    subSection: SubSectionData | null;
+    onSave: (frameworkData: Omit<Framework, 'id' | 'icon' | 'sections'>) => void;
+    framework: Framework | null;
 }
 
-const SubSectionModal: React.FC<SubSectionModalProps> = ({ isOpen, onClose, onSave, subSection }) => {
+const FrameworkModal: React.FC<FrameworkModalProps> = ({ isOpen, onClose, onSave, framework }) => {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
 
     useEffect(() => {
-        if (subSection) {
-            setTitle(subSection.title);
-            setDescription(subSection.description || '');
+        if (framework) {
+            setTitle(framework.title);
+            setDescription(framework.description);
         } else {
             setTitle('');
             setDescription('');
         }
-    }, [subSection, isOpen]);
+    }, [framework, isOpen]);
 
     const handleSave = () => {
         if (title.trim()) {
@@ -31,28 +30,28 @@ const SubSectionModal: React.FC<SubSectionModalProps> = ({ isOpen, onClose, onSa
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={subSection ? 'Edit Subsection' : 'Add New Subsection'}>
+        <Modal isOpen={isOpen} onClose={onClose} title={framework ? 'Edit Framework' : 'Add New Framework'}>
             <div className="p-6 space-y-4">
                 <div>
-                    <label htmlFor="subsection-title" className="block text-sm font-medium text-dark-text-secondary mb-1">Subsection Title</label>
+                    <label htmlFor="framework-title" className="block text-sm font-medium text-dark-text-secondary mb-1">Framework Title</label>
                     <input
-                        id="subsection-title"
+                        id="framework-title"
                         type="text"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         className="w-full p-2 bg-dark-bg border border-dark-border text-dark-text-primary rounded-md focus:ring-2 focus:ring-indigo-500"
-                        placeholder="e.g., 4.4 Information security management system"
+                        placeholder="e.g., NIST CSF"
                     />
                 </div>
                 <div>
-                    <label htmlFor="subsection-description" className="block text-sm font-medium text-dark-text-secondary mb-1">Description</label>
+                    <label htmlFor="framework-description" className="block text-sm font-medium text-dark-text-secondary mb-1">Description</label>
                     <textarea
-                        id="subsection-description"
+                        id="framework-description"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         className="w-full p-2 bg-dark-bg border border-dark-border text-dark-text-primary rounded-md focus:ring-2 focus:ring-indigo-500"
                         rows={3}
-                        placeholder="A brief description of this subsection..."
+                        placeholder="A brief description of the framework..."
                     />
                 </div>
             </div>
@@ -74,4 +73,4 @@ const SubSectionModal: React.FC<SubSectionModalProps> = ({ isOpen, onClose, onSa
     );
 };
 
-export default SubSectionModal;
+export default FrameworkModal;
