@@ -1,8 +1,7 @@
-
 import React from 'react';
-import type { SectionData, SubSectionData, SubSectionResponse, QuestionResponse } from '../types';
+import type { SectionData, SubSectionData, SubSectionResponse, QuestionResponse, Question } from '../types';
 import QuestionAccordion from './QuestionAccordion';
-import ProgressBar from './ProgressBar';
+import { PlusIcon } from './icons';
 
 interface SubSectionDetailViewProps {
     section: SectionData;
@@ -10,15 +9,27 @@ interface SubSectionDetailViewProps {
     responses: SubSectionResponse;
     onResponseChange: (subSectionId: string, questionIndex: number, newResponse: Partial<QuestionResponse>) => void;
     onBack: () => void;
+    isAdmin: boolean;
+    onQuestionChange: (sectionId: string, subSectionId: string, qIndex: number, updatedQuestion: Question) => void;
+    onQuestionDelete: (sectionId: string, subSectionId: string, qIndex: number) => void;
+    onQuestionAdd: (sectionId: string, subSectionId: string) => void;
 }
 
-const SubSectionDetailView: React.FC<SubSectionDetailViewProps> = ({ section, subSection, responses, onResponseChange, onBack }) => {
+const SubSectionDetailView: React.FC<SubSectionDetailViewProps> = ({ 
+    section, 
+    subSection, 
+    responses, 
+    onResponseChange, 
+    onBack, 
+    isAdmin,
+    onQuestionChange,
+    onQuestionDelete,
+    onQuestionAdd
+}) => {
     const Icon = section.icon;
 
-    // FIX: Explicitly type the parameter 'r' in the filter function to 'QuestionResponse' to resolve the 'Property 'resultStatus' does not exist on type 'unknown'' error.
-    const answeredCount = Object.values(responses).filter((r: QuestionResponse) => r.resultStatus !== 'Not assessed').length;
+    const answeredCount = Object.keys(responses).filter(key => responses[key].resultStatus !== 'Not assessed').length;
     const totalCount = subSection.questions.length;
-    const percentage = totalCount > 0 ? (answeredCount / totalCount) * 100 : 0;
     
     const colorClasses: { [key: string]: { text: string; bg: string; } } = {
         yellow: { text: 'text-yellow-400', bg: 'bg-yellow-500/20' },
@@ -54,17 +65,14 @@ const SubSectionDetailView: React.FC<SubSectionDetailViewProps> = ({ section, su
                             <p className="text-dark-text-secondary mt-1">{subSection.description}</p>
                         </div>
                     </div>
-                    <div className="mt-4">
-                      <p className="text-dark-text-secondary text-sm">{answeredCount} out of {totalCount} ({Math.round(percentage)}%) complete. Showing {totalCount} items.</p>
-                    </div>
-                    <div className="mt-4 flex justify-end gap-2">
-                         <button className="px-3 py-1.5 bg-slate-700 text-white text-sm font-semibold rounded-md hover:bg-slate-600 transition-colors">Reset</button>
-                         <button className="px-3 py-1.5 bg-slate-700 text-white text-sm font-semibold rounded-md hover:bg-slate-600 transition-colors flex items-center gap-1.5">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                                <path fillRule="evenodd" d="M2.628 1.601C5.028 1.206 7.49 1 10 1s4.973.206 7.372.601a.75.75 0 0 1 .628.74v2.288a2.25 2.25 0 0 1-.659 1.59l-4.682 4.683a2.25 2.25 0 0 0-.659 1.59v3.037c0 .684-.31 1.33-.844 1.757l-1.937 1.55A.75.75 0 0 1 8 18.25v-5.757a2.25 2.25 0 0 0-.659-1.59L2.659 6.22A2.25 2.25 0 0 1 2 4.629V2.34a.75.75 0 0 1 .628-.74Z" clipRule="evenodd" />
-                            </svg>
-                            Filters
-                        </button>
+                     <div className="mt-4 flex justify-between items-center">
+                        <p className="text-dark-text-secondary text-sm">Showing {totalCount} items.</p>
+                        {isAdmin && (
+                            <button onClick={() => onQuestionAdd(section.id, subSection.id)} className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-semibold rounded-md hover:bg-indigo-700 transition-colors flex items-center gap-1.5">
+                                <PlusIcon className="w-4 h-4" />
+                                Add Question
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -78,10 +86,13 @@ const SubSectionDetailView: React.FC<SubSectionDetailViewProps> = ({ section, su
                     </div>
                     {subSection.questions.map((question, index) => (
                         <QuestionAccordion
-                            key={index}
+                            key={question.id || index}
                             question={question}
                             response={responses[`q${index}`]}
                             onChange={(newResponse) => onResponseChange(subSection.id, index, newResponse)}
+                            isAdmin={isAdmin}
+                            onQuestionChange={(updatedQuestion) => onQuestionChange(section.id, subSection.id, index, updatedQuestion)}
+                            onQuestionDelete={() => onQuestionDelete(section.id, subSection.id, index)}
                         />
                     ))}
                 </div>

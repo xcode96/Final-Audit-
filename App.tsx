@@ -1,32 +1,47 @@
 
-
-
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { FRAMEWORKS } from './constants';
-import type { ResponseState, SectionData, QuestionResponse, SubSectionData, ResultStatus, Framework, SubSectionResponse } from './types';
+import { INITIAL_FRAMEWORKS } from './constants';
+import type { ResponseState, SectionData, Question, QuestionResponse, SubSectionData, ResultStatus, Framework, SubSectionResponse } from './types';
 import Section from './components/Section';
 import SummaryModal from './components/SummaryModal';
 import SectionCard from './components/SectionCard';
 import SubSectionDetailView from './components/SubSectionDetailView';
 import { YourProgressCard, RadarChartCard } from './components/DashboardComponents';
 import ProgressBar from './components/ProgressBar';
+import AdminLogin from './AdminLogin';
+import FrameworkModal from './FrameworkModal';
+import { LogoutIcon, PlusIcon } from './components/icons';
 
 declare const jspdf: any;
+declare const XLSX: any;
 
 const FrameworkCard: React.FC<{
     framework: Framework;
     onClick: () => void;
     answered: number;
     total: number;
-}> = ({ framework, onClick, answered, total }) => {
+    isAdmin: boolean;
+    onEdit: (framework: Framework) => void;
+    onDelete: (frameworkId: string) => void;
+}> = ({ framework, onClick, answered, total, isAdmin, onEdit, onDelete }) => {
     const Icon = framework.icon;
-    const isDisabled = framework.sections.length === 0;
+    const isDisabled = framework.sections.length === 0 && !isAdmin;
 
     return (
         <div
             onClick={!isDisabled ? onClick : undefined}
-            className={`group bg-dark-card p-6 rounded-xl border border-dark-border transition-all duration-300 flex flex-col h-full ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-indigo-500/50 hover:shadow-lg cursor-pointer'}`}
+            className={`group bg-dark-card p-6 rounded-xl border border-dark-border transition-all duration-300 flex flex-col h-full relative ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-indigo-500/50 hover:shadow-lg cursor-pointer'}`}
         >
+            {isAdmin && (
+                <div className="absolute top-2 right-2 flex gap-1">
+                    <button onClick={(e) => { e.stopPropagation(); onEdit(framework);}} className="p-1.5 bg-slate-700 hover:bg-slate-600 rounded-md text-dark-text-secondary hover:text-white transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" /></svg>
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); onDelete(framework.id);}} className="p-1.5 bg-red-800/50 hover:bg-red-700/60 rounded-md text-red-400 hover:text-white transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.134-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.067-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                    </button>
+                </div>
+            )}
             <div className="flex items-start justify-between">
                 <div className="w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center">
                    <Icon className="w-7 h-7 text-indigo-400" />
@@ -36,9 +51,9 @@ const FrameworkCard: React.FC<{
             <div className="mt-4 flex-grow">
                 <h3 className="font-bold text-lg text-dark-text-primary">{framework.title}</h3>
                 <p className="text-dark-text-secondary text-sm mt-1">{framework.description}</p>
-                {isDisabled && <p className="text-yellow-400 text-xs mt-2 font-semibold">Coming Soon</p>}
+                {isDisabled && !isAdmin && <p className="text-yellow-400 text-xs mt-2 font-semibold">Coming Soon</p>}
             </div>
-             {!isDisabled && total > 0 && (
+             {(!isDisabled || isAdmin) && total > 0 && (
                 <div className="mt-4 pt-4 border-t border-dark-border/50">
                     <div className="w-full bg-dark-border rounded-full h-2.5">
                         <div 
@@ -54,6 +69,16 @@ const FrameworkCard: React.FC<{
 
 
 const App: React.FC = () => {
+    const [frameworks, setFrameworks] = useState<Framework[]>(() => {
+        try {
+            const savedFrameworks = window.localStorage.getItem('audit-frameworks');
+            return savedFrameworks ? JSON.parse(savedFrameworks) : INITIAL_FRAMEWORKS;
+        } catch (error) {
+            console.error("Could not load frameworks from local storage", error);
+            return INITIAL_FRAMEWORKS;
+        }
+    });
+    
     const [responses, setResponses] = useState<ResponseState>(() => {
         try {
             const savedResponses = window.localStorage.getItem('iso27001-checklist-responses');
@@ -64,12 +89,30 @@ const App: React.FC = () => {
         }
     });
     
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [showLogin, setShowLogin] = useState(false);
+    
     const [selectedFrameworkId, setSelectedFrameworkId] = useState<string | null>(null);
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
     const [selectedSubSectionId, setSelectedSubSectionId] = useState<string | null>(null);
     const [isExportingPdf, setIsExportingPdf] = useState(false);
+    const [isExportingExcel, setIsExportingExcel] = useState(false);
 
+    const [isFrameworkModalOpen, setIsFrameworkModalOpen] = useState(false);
+    const [editingFramework, setEditingFramework] = useState<Framework | null>(null);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('admin')) {
+            const loggedIn = sessionStorage.getItem('isAdmin') === 'true';
+            if (loggedIn) {
+                setIsAdmin(true);
+            } else {
+                setShowLogin(true);
+            }
+        }
+    }, []);
 
     useEffect(() => {
         try {
@@ -79,10 +122,20 @@ const App: React.FC = () => {
         }
     }, [responses]);
 
+    useEffect(() => {
+        if (isAdmin) {
+            try {
+                window.localStorage.setItem('audit-frameworks', JSON.stringify(frameworks));
+            } catch (error) {
+                console.error("Could not save frameworks to local storage", error);
+            }
+        }
+    }, [frameworks, isAdmin]);
+
     const selectedFramework = useMemo(() => {
         if (!selectedFrameworkId) return null;
-        return FRAMEWORKS.find(f => f.id === selectedFrameworkId) || null;
-    }, [selectedFrameworkId]);
+        return frameworks.find(f => f.id === selectedFrameworkId) || null;
+    }, [selectedFrameworkId, frameworks]);
 
     const totalQuestions = useMemo(() => {
         if (!selectedFramework) return 0;
@@ -94,12 +147,11 @@ const App: React.FC = () => {
     const answeredQuestions = useMemo(() => {
         if (!selectedFramework) return 0;
         const subSectionIds = new Set(selectedFramework.sections.flatMap(s => s.subSections.map(ss => ss.id)));
-        
-        return Object.entries(responses).reduce((count, [subSectionId, subSectionResponses]) => {
+        return Object.keys(responses).reduce((count, subSectionId) => {
             if(subSectionIds.has(subSectionId)) {
-                // FIX: Cast subSectionResponses to SubSectionResponse to resolve TypeScript error with Object.values
-                const typedResponses = subSectionResponses as SubSectionResponse;
-                return count + Object.values(typedResponses).filter((r: QuestionResponse) => r.resultStatus !== 'Not assessed').length;
+                const subSectionResponses = responses[subSectionId];
+                // Fix: Cast `r` to `QuestionResponse` to access `resultStatus`.
+                return count + Object.values(subSectionResponses).filter(r => (r as QuestionResponse).resultStatus !== 'Not assessed').length;
             }
             return count;
         }, 0);
@@ -107,32 +159,22 @@ const App: React.FC = () => {
     
     const frameworkProgress = useMemo(() => {
         const progress: { [frameworkId: string]: { answered: number; total: number } } = {};
-        FRAMEWORKS.forEach(framework => {
-            if (framework.sections.length === 0) {
-                progress[framework.id] = { answered: 0, total: 0 };
-                return;
-            }
+        frameworks.forEach(framework => {
             const subSectionIds = new Set(framework.sections.flatMap(s => s.subSections.map(ss => ss.id)));
             let total = 0;
             let answered = 0;
 
-            framework.sections.forEach(s => {
-                s.subSections.forEach(ss => {
-                    total += ss.questions.length;
-                });
-            });
-
-            Object.entries(responses).forEach(([subSectionId, subSectionResponses]) => {
+            framework.sections.forEach(s => s.subSections.forEach(ss => total += ss.questions.length));
+            Object.keys(responses).forEach((subSectionId) => {
                 if(subSectionIds.has(subSectionId)) {
-                    // FIX: Cast subSectionResponses to SubSectionResponse to resolve TypeScript error with Object.values
-                    const typedResponses = subSectionResponses as SubSectionResponse;
-                    answered += Object.values(typedResponses).filter((r: QuestionResponse) => r.resultStatus !== 'Not assessed').length;
+                    const subSectionResponses = responses[subSectionId] as SubSectionResponse;
+                    answered += Object.values(subSectionResponses).filter(r => (r as QuestionResponse).resultStatus !== 'Not assessed').length;
                 }
             });
             progress[framework.id] = { answered, total };
         });
         return progress;
-    }, [responses]);
+    }, [responses, frameworks]);
     
     const sectionProgress = useMemo(() => {
         if (!selectedFramework) return {};
@@ -144,7 +186,8 @@ const App: React.FC = () => {
                 sectionTotal += sub.questions.length;
                 const subResponse = responses[sub.id];
                 if (subResponse) {
-                    sectionAnswered += Object.values(subResponse).filter((r: QuestionResponse) => r.resultStatus !== 'Not assessed').length;
+                    // Fix: Cast `r` to `QuestionResponse` to access `resultStatus`.
+                    sectionAnswered += Object.values(subResponse).filter(r => (r as QuestionResponse).resultStatus !== 'Not assessed').length;
                 }
             });
             progress[section.id] = { answered: sectionAnswered, total: sectionTotal };
@@ -157,15 +200,14 @@ const App: React.FC = () => {
         const progress: { [subSectionId: string]: { answered: number; total: number } } = {};
         selectedFramework.sections.forEach(section => {
             section.subSections.forEach(sub => {
-                const subResponse = responses[sub.id] || {};
-                const answered = Object.values(subResponse).filter((r: QuestionResponse) => r.resultStatus !== 'Not assessed').length;
-                const total = sub.questions.length;
-                progress[sub.id] = { answered, total };
+                const subResponse = responses[sub.id];
+                // Fix: Cast `r` to `QuestionResponse` to access `resultStatus`.
+                const answered = subResponse ? Object.values(subResponse).filter(r => (r as QuestionResponse).resultStatus !== 'Not assessed').length : 0;
+                progress[sub.id] = { answered, total: sub.questions.length };
             });
         });
         return progress;
     }, [responses, selectedFramework]);
-
 
     const selectedSection = useMemo(() => {
         if (!selectedFramework || !selectedSectionId) return null;
@@ -180,103 +222,99 @@ const App: React.FC = () => {
     const handleResponseChange = useCallback((subSectionId: string, questionIndex: number, newResponse: Partial<QuestionResponse>) => {
         setResponses(prev => {
             const currentResponse = prev[subSectionId]?.[`q${questionIndex}`] || {
-                workflowStatus: 'To do',
-                resultStatus: 'Not assessed',
-                notes: '',
-                evidence: '',
+                workflowStatus: 'To do', resultStatus: 'Not assessed', notes: '', evidence: '',
             };
-
-            return {
-                ...prev,
-                [subSectionId]: {
-                    ...prev[subSectionId],
-                    [`q${questionIndex}`]: { ...currentResponse, ...newResponse }
-                }
-            };
+            return { ...prev, [subSectionId]: { ...prev[subSectionId], [`q${questionIndex}`]: { ...currentResponse, ...newResponse }}};
         });
     }, []);
     
     const resetChecklist = useCallback(() => {
         if (!selectedFramework) return;
         if (window.confirm(`Are you sure you want to reset all responses for ${selectedFramework.title}? This action cannot be undone.`)) {
-            
             const subSectionIdsToDelete = new Set(selectedFramework.sections.flatMap(s => s.subSections.map(ss => ss.id)));
             const newResponses = { ...responses };
             subSectionIdsToDelete.forEach(id => delete newResponses[id]);
             setResponses(newResponses);
-            
-            try {
-                 window.localStorage.setItem('iso27001-checklist-responses', JSON.stringify(newResponses));
-            } catch (error) {
-                console.error("Could not clear responses from local storage", error);
-            }
         }
     }, [responses, selectedFramework]);
 
     const summaryData = useMemo(() => {
-        const summary: Record<ResultStatus, number> = {
-            'Compliant': 0,
-            'Partially Compliant': 0,
-            'Non-Compliant': 0,
-            'Not Applicable': 0,
-            'Not assessed': totalQuestions
-        };
-
+        const summary: Record<ResultStatus, number> = { 'Compliant': 0, 'Partially Compliant': 0, 'Non-Compliant': 0, 'Not Applicable': 0, 'Not assessed': totalQuestions };
         if (!selectedFramework) return summary;
 
         const subSectionIds = new Set(selectedFramework.sections.flatMap(s => s.subSections.map(ss => ss.id)));
         let answered = 0;
         
-        Object.entries(responses).forEach(([subSectionId, subSectionResponses]) => {
+        Object.keys(responses).forEach(subSectionId => {
              if (subSectionIds.has(subSectionId)) {
-                 // FIX: Cast subSectionResponses to SubSectionResponse to resolve TypeScript error with Object.values
-                 const typedResponses = subSectionResponses as SubSectionResponse;
-                 // FIX: Switched from Object.keys to Object.values with a type annotation to fix an indexing error. This approach is consistent with other parts of the file.
-                 Object.values(typedResponses).forEach((response: QuestionResponse) => {
-                    if (response.resultStatus !== 'Not assessed') {
-                        summary[response.resultStatus]++;
+                 Object.values(responses[subSectionId] as SubSectionResponse).forEach(response => {
+                    // Fix: Cast `response` to `QuestionResponse` to correctly access its properties.
+                    const qResponse = response as QuestionResponse;
+                    if (qResponse.resultStatus !== 'Not assessed') {
+                        summary[qResponse.resultStatus]++;
                         answered++;
                     }
                  });
              }
         });
-       
         summary['Not assessed'] = totalQuestions - answered;
         return summary;
     }, [responses, totalQuestions, selectedFramework]);
     
     const handleExportJson = useCallback(() => {
         if (!selectedFramework) return;
-        
         const subSectionIds = new Set(selectedFramework.sections.flatMap(s => s.subSections.map(ss => ss.id)));
         const frameworkResponses: ResponseState = {};
-        // FIX: Replaced for...in loop with Object.entries().forEach to resolve potential type inference issues with object keys during iteration. This provides a safer way to iterate over own properties.
-        Object.entries(responses).forEach(([id, value]) => {
-            if (subSectionIds.has(id)) {
-                frameworkResponses[id] = value;
-            }
-        });
-        
-        const dataStr = JSON.stringify({
-            framework: selectedFramework.title,
-            exportDate: new Date().toISOString(),
-            responses: frameworkResponses,
-        }, null, 2);
+        // Fix: Cast `value` to `SubSectionResponse` because Object.entries infers it as `unknown`.
+        Object.entries(responses).forEach(([id, value]) => { if (subSectionIds.has(id)) { frameworkResponses[id] = value as SubSectionResponse; }});
+        const dataStr = JSON.stringify({ framework: selectedFramework.title, exportDate: new Date().toISOString(), responses: frameworkResponses, }, null, 2);
         const blob = new Blob([dataStr], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = url;
+        link.href = URL.createObjectURL(blob);
         link.download = `${selectedFramework.id}-audit-export.json`;
-        document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(link.href);
     }, [responses, selectedFramework]);
+
+    const handleExportExcel = useCallback(() => {
+        if (!selectedFramework) return;
+        setIsExportingExcel(true);
+        try {
+            const data: any[] = [];
+            selectedFramework.sections.forEach(section => {
+                section.subSections.forEach(subSection => {
+                    subSection.questions.forEach((question, index) => {
+                        const response = responses[subSection.id]?.[`q${index}`] || {
+                            workflowStatus: 'To do', resultStatus: 'Not assessed', notes: '', evidence: '',
+                        };
+                        data.push({
+                            "Section": section.title,
+                            "Subsection": subSection.title,
+                            "Control": question.text,
+                            "Priority": question.priority,
+                            "Status": response.workflowStatus,
+                            "Result": response.resultStatus,
+                            "Notes": response.notes,
+                            "Evidence": response.evidence
+                        });
+                    });
+                });
+            });
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Audit Results");
+            XLSX.writeFile(workbook, `${selectedFramework.id}-audit-export.xlsx`);
+        } catch (error) {
+            console.error("Failed to generate Excel file", error);
+            alert("Could not generate Excel file. Please ensure you are online to load the required library.");
+        } finally {
+            setIsExportingExcel(false);
+        }
+    }, [selectedFramework, responses]);
     
     const handleExportPdf = useCallback(() => {
         if (!selectedFramework) return;
         setIsExportingPdf(true);
-        
         try {
             const doc = new jspdf.jsPDF();
             doc.setFontSize(18);
@@ -290,35 +328,159 @@ const App: React.FC = () => {
             let y = 48;
             Object.entries(summaryData).forEach(([status, count]) => {
                 doc.setFontSize(10);
-                // FIX: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
                 const percentage = totalQuestions > 0 ? (Number(count) / totalQuestions * 100).toFixed(1) : 0;
                 doc.text(`${status}: ${count} / ${totalQuestions} (${percentage}%)`, 16, y);
                 y += 7;
             });
-            
             doc.save(`${selectedFramework.id}-audit-report.pdf`);
         } catch (error) {
             console.error("Failed to generate PDF", error);
-            alert("Could not generate PDF. Please ensure you are online to load the PDF generation library.");
         } finally {
             setIsExportingPdf(false);
         }
-    }, [selectedFramework, totalQuestions, summaryData, responses]);
+    }, [selectedFramework, totalQuestions, summaryData]);
+
+    // Admin handlers
+    const handleLogin = (success: boolean) => {
+        if (success) {
+            setIsAdmin(true);
+            setShowLogin(false);
+            sessionStorage.setItem('isAdmin', 'true');
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+    };
+
+    const handleLogout = () => {
+        setIsAdmin(false);
+        sessionStorage.removeItem('isAdmin');
+        window.location.search = '';
+    };
+
+    const handleSaveFramework = (frameworkData: Omit<Framework, 'id' | 'icon' | 'sections'>) => {
+        if (editingFramework) {
+            setFrameworks(frameworks.map(f => f.id === editingFramework.id ? { ...f, ...frameworkData } : f));
+        } else {
+            const newFramework: Framework = {
+                id: frameworkData.title.toLowerCase().replace(/\s+/g, '-'),
+                icon: PlusIcon,
+                sections: [],
+                ...frameworkData,
+            };
+            setFrameworks([...frameworks, newFramework]);
+        }
+        setIsFrameworkModalOpen(false);
+        setEditingFramework(null);
+    };
+
+    const handleEditFramework = (framework: Framework) => {
+        setEditingFramework(framework);
+        setIsFrameworkModalOpen(true);
+    };
+
+    const handleAddNewFramework = () => {
+        setEditingFramework(null);
+        setIsFrameworkModalOpen(true);
+    };
+    
+    const handleDeleteFramework = (frameworkId: string) => {
+        if (window.confirm("Are you sure you want to delete this framework and all its data? This cannot be undone.")) {
+            setFrameworks(frameworks.filter(f => f.id !== frameworkId));
+        }
+    };
+
+    const handleQuestionChange = useCallback((sectionId: string, subSectionId: string, qIndex: number, updatedQuestion: Question) => {
+        setFrameworks(prevFrameworks => prevFrameworks.map(fw => {
+            if (fw.id !== selectedFrameworkId) return fw;
+            return {
+                ...fw,
+                sections: fw.sections.map(s => {
+                    if (s.id !== sectionId) return s;
+                    return {
+                        ...s,
+                        subSections: s.subSections.map(ss => {
+                            if (ss.id !== subSectionId) return ss;
+                            const newQuestions = [...ss.questions];
+                            newQuestions[qIndex] = updatedQuestion;
+                            return { ...ss, questions: newQuestions };
+                        })
+                    }
+                })
+            };
+        }));
+    }, [selectedFrameworkId]);
+
+    const handleQuestionDelete = useCallback((sectionId: string, subSectionId: string, qIndex: number) => {
+        if (!window.confirm("Are you sure you want to delete this question?")) return;
+        setFrameworks(prevFrameworks => prevFrameworks.map(fw => {
+            if (fw.id !== selectedFrameworkId) return fw;
+            return {
+                ...fw,
+                sections: fw.sections.map(s => {
+                    if (s.id !== sectionId) return s;
+                    return {
+                        ...s,
+                        subSections: s.subSections.map(ss => {
+                            if (ss.id !== subSectionId) return ss;
+                            const newQuestions = ss.questions.filter((_, i) => i !== qIndex);
+                            return { ...ss, questions: newQuestions };
+                        })
+                    }
+                })
+            };
+        }));
+    }, [selectedFrameworkId]);
+    
+    const handleQuestionAdd = useCallback((sectionId: string, subSectionId: string) => {
+        const newQuestion: Question = {
+            text: 'New Question',
+            priority: 'Optional',
+            description: 'Meaning: ...',
+            evidenceGuidance: 'What to Show / Evidence: ...'
+        };
+        setFrameworks(prevFrameworks => prevFrameworks.map(fw => {
+            if (fw.id !== selectedFrameworkId) return fw;
+            return {
+                ...fw,
+                sections: fw.sections.map(s => {
+                    if (s.id !== sectionId) return s;
+                    return {
+                        ...s,
+                        subSections: s.subSections.map(ss => {
+                            if (ss.id !== subSectionId) return ss;
+                            return { ...ss, questions: [...ss.questions, newQuestion] };
+                        })
+                    }
+                })
+            };
+        }));
+    }, [selectedFrameworkId]);
+
+    if (showLogin) {
+        return <AdminLogin onLogin={handleLogin} />;
+    }
     
     const renderCurrentView = () => {
         if (!selectedFramework) {
             return (
                 <div>
-                    <h2 className="text-3xl font-bold text-center">Select an Audit Framework</h2>
-                    <p className="text-center text-dark-text-secondary mt-2 max-w-2xl mx-auto">Choose a security framework to begin your audit. Your progress is saved automatically.</p>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h2 className="text-3xl font-bold text-center">Select an Audit Framework</h2>
+                            <p className="text-center text-dark-text-secondary mt-2 max-w-2xl mx-auto">Choose a security framework to begin your audit. Your progress is saved automatically.</p>
+                        </div>
+                         {isAdmin && <button onClick={handleAddNewFramework} className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-md hover:bg-indigo-700 transition-colors flex items-center gap-2"><PlusIcon className="w-5 h-5" /> Add Framework</button>}
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8 max-w-5xl mx-auto">
-                        {FRAMEWORKS.map(fw => (
+                        {frameworks.map(fw => (
                             <FrameworkCard
                                 key={fw.id}
                                 framework={fw}
                                 onClick={() => setSelectedFrameworkId(fw.id)}
                                 answered={frameworkProgress[fw.id]?.answered || 0}
                                 total={frameworkProgress[fw.id]?.total || 0}
+                                isAdmin={isAdmin}
+                                onEdit={handleEditFramework}
+                                onDelete={handleDeleteFramework}
                             />
                         ))}
                     </div>
@@ -334,6 +496,10 @@ const App: React.FC = () => {
                     responses={responses[selectedSubSection.id] || {}}
                     onResponseChange={handleResponseChange}
                     onBack={() => setSelectedSubSectionId(null)}
+                    isAdmin={isAdmin}
+                    onQuestionChange={handleQuestionChange}
+                    onQuestionDelete={handleQuestionDelete}
+                    onQuestionAdd={handleQuestionAdd}
                 />
             );
         }
@@ -342,40 +508,36 @@ const App: React.FC = () => {
             return (
                 <div>
                     <button onClick={() => setSelectedSectionId(null)} className="mb-6 flex items-center gap-2 text-indigo-400 font-semibold hover:text-indigo-300 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
                         Back to Dashboard
                     </button>
                     <Section
                         section={selectedSection}
                         subSectionProgress={subSectionProgress}
-                        onSubSectionSelect={(subSectionId) => {
-                            setSelectedSubSectionId(subSectionId);
-                        }}
+                        onSubSectionSelect={(subSectionId) => setSelectedSubSectionId(subSectionId)}
                     />
                 </div>
             );
         }
 
-        // Dashboard View
         return (
             <div>
                 <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
                     <div>
                         <button onClick={() => { setSelectedFrameworkId(null); setSelectedSectionId(null); setSelectedSubSectionId(null); }} className="flex items-center gap-2 text-indigo-400 font-semibold hover:text-indigo-300 transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
                             Back to Frameworks
                         </button>
                         <h2 className="text-3xl font-bold mt-2">{selectedFramework.title}</h2>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                         <button onClick={() => setIsSummaryOpen(true)} className="px-4 py-2 bg-slate-700 text-white text-sm font-semibold rounded-md hover:bg-slate-600 transition-colors">View Summary</button>
-                         <button onClick={handleExportJson} className="px-4 py-2 bg-slate-700 text-white text-sm font-semibold rounded-md hover:bg-slate-600 transition-colors">Export JSON</button>
-                         <button onClick={handleExportPdf} disabled={isExportingPdf} className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                            {isExportingPdf ? 'Exporting...' : 'Export PDF'}
+                         <button onClick={() => setIsSummaryOpen(true)} className="px-4 py-2 bg-slate-700 text-white text-sm font-semibold rounded-md hover:bg-slate-600 transition-colors">Summary</button>
+                         <button onClick={handleExportJson} className="px-4 py-2 bg-slate-700 text-white text-sm font-semibold rounded-md hover:bg-slate-600 transition-colors">JSON</button>
+                         <button onClick={handleExportExcel} disabled={isExportingExcel} className="px-4 py-2 bg-slate-700 text-white text-sm font-semibold rounded-md hover:bg-slate-600 transition-colors disabled:opacity-50">
+                            {isExportingExcel ? 'Exporting...' : 'Excel'}
+                         </button>
+                         <button onClick={handleExportPdf} disabled={isExportingPdf} className="px-4 py-2 bg-slate-700 text-white text-sm font-semibold rounded-md hover:bg-slate-600 transition-colors disabled:opacity-50">
+                            {isExportingPdf ? 'Exporting...' : 'PDF'}
                          </button>
                          <button onClick={resetChecklist} className="px-4 py-2 bg-red-600/80 text-white text-sm font-semibold rounded-md hover:bg-red-700/80 transition-colors">Reset</button>
                     </div>
@@ -403,13 +565,7 @@ const App: React.FC = () => {
                     </div>
                 </div>
 
-
-                <SummaryModal 
-                    isOpen={isSummaryOpen} 
-                    onClose={() => setIsSummaryOpen(false)} 
-                    summary={summaryData} 
-                    totalQuestions={totalQuestions}
-                />
+                <SummaryModal isOpen={isSummaryOpen} onClose={() => setIsSummaryOpen(false)} summary={summaryData} totalQuestions={totalQuestions} />
             </div>
         );
     };
@@ -418,18 +574,25 @@ const App: React.FC = () => {
         <div className="bg-dark-bg text-dark-text-primary min-h-screen font-sans">
             <header className="bg-dark-card border-b border-dark-border sticky top-0 z-30">
                 <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-                    <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                        Audit Checklist Tool
-                    </h1>
+                    <h1 className="text-xl font-bold text-white flex items-center gap-2">Audit Checklist Tool</h1>
+                    {isAdmin && <button onClick={handleLogout} className="flex items-center gap-2 text-sm px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors"><LogoutIcon className="w-4 h-4" /> Logout</button>}
                 </div>
             </header>
 
             <main className="container mx-auto px-4 py-8">
                 {renderCurrentView()}
             </main>
+
+            {isFrameworkModalOpen && (
+                <FrameworkModal
+                    isOpen={isFrameworkModalOpen}
+                    onClose={() => { setIsFrameworkModalOpen(false); setEditingFramework(null); }}
+                    onSave={handleSaveFramework}
+                    framework={editingFramework}
+                />
+            )}
         </div>
     );
 };
 
-// FIX: Add default export to resolve "Module has no default export" error in index.tsx
 export default App;

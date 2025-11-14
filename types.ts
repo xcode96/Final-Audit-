@@ -6,6 +6,7 @@ export type QuestionPriority = 'Essential' | 'Optional' | 'Advanced';
 
 
 export interface Question {
+    id?: string; // Optional ID for client-side keying
     text: string;
     priority: QuestionPriority;
     description: string;

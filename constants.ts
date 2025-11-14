@@ -1,4 +1,3 @@
-
 import type { SectionData, Question, QuestionPriority, Framework } from './types';
 import {
   ShieldIcon,
@@ -508,7 +507,6 @@ const enrichQuestions = (questions: (string | Question)[]): Question[] => {
   return questions.map((q, index) => {
     const questionText = typeof q === 'string' ? q : q.text;
     if (typeof q === 'object' && q.text && q.description && q.evidenceGuidance) {
-        // If it's already a rich question object, use it
         return q;
     }
 
@@ -1693,7 +1691,7 @@ const ISO_27001_SECTIONS: SectionData[] = [
   }
 ];
 
-export const FRAMEWORKS: Framework[] = [
+export const INITIAL_FRAMEWORKS: Framework[] = [
   {
     id: 'iso-27001',
     title: 'ISO/IEC 27001:2022 Audit',

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { SectionData } from '../types';
 import { CircleProgress } from './DashboardComponents';
