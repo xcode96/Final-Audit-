@@ -10,10 +10,13 @@ import { YourProgressCard, RadarChartCard } from './components/DashboardComponen
 import ProgressBar from './components/ProgressBar';
 import AdminLogin from './AdminLogin';
 import FrameworkModal from './FrameworkModal';
-import { LogoutIcon, PlusIcon } from './components/icons';
+import SectionModal from './components/SectionModal';
+import { LogoutIcon, PlusIcon, ShieldIcon, UsersIcon, LockIcon, CodeIcon, OperationIcon, FolderIcon, PeopleIcon, PhysicalSecurityIcon, TechnologicalIcon } from './components/icons';
 
 declare const jspdf: any;
 declare const XLSX: any;
+
+const icons = { ShieldIcon, UsersIcon, LockIcon, CodeIcon, OperationIcon, FolderIcon, PeopleIcon, PhysicalSecurityIcon, TechnologicalIcon };
 
 const FrameworkCard: React.FC<{
     framework: Framework;
@@ -102,6 +105,9 @@ const App: React.FC = () => {
     const [isFrameworkModalOpen, setIsFrameworkModalOpen] = useState(false);
     const [editingFramework, setEditingFramework] = useState<Framework | null>(null);
 
+    const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
+    const [editingSection, setEditingSection] = useState<SectionData | null>(null);
+
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.has('admin')) {
@@ -150,7 +156,6 @@ const App: React.FC = () => {
         return Object.keys(responses).reduce((count, subSectionId) => {
             if(subSectionIds.has(subSectionId)) {
                 const subSectionResponses = responses[subSectionId];
-                // Fix: Cast `r` to `QuestionResponse` to access `resultStatus`.
                 return count + Object.values(subSectionResponses).filter(r => (r as QuestionResponse).resultStatus !== 'Not assessed').length;
             }
             return count;
@@ -186,7 +191,6 @@ const App: React.FC = () => {
                 sectionTotal += sub.questions.length;
                 const subResponse = responses[sub.id];
                 if (subResponse) {
-                    // Fix: Cast `r` to `QuestionResponse` to access `resultStatus`.
                     sectionAnswered += Object.values(subResponse).filter(r => (r as QuestionResponse).resultStatus !== 'Not assessed').length;
                 }
             });
@@ -201,7 +205,6 @@ const App: React.FC = () => {
         selectedFramework.sections.forEach(section => {
             section.subSections.forEach(sub => {
                 const subResponse = responses[sub.id];
-                // Fix: Cast `r` to `QuestionResponse` to access `resultStatus`.
                 const answered = subResponse ? Object.values(subResponse).filter(r => (r as QuestionResponse).resultStatus !== 'Not assessed').length : 0;
                 progress[sub.id] = { answered, total: sub.questions.length };
             });
@@ -248,7 +251,6 @@ const App: React.FC = () => {
         Object.keys(responses).forEach(subSectionId => {
              if (subSectionIds.has(subSectionId)) {
                  Object.values(responses[subSectionId] as SubSectionResponse).forEach(response => {
-                    // Fix: Cast `response` to `QuestionResponse` to correctly access its properties.
                     const qResponse = response as QuestionResponse;
                     if (qResponse.resultStatus !== 'Not assessed') {
                         summary[qResponse.resultStatus]++;
@@ -265,7 +267,6 @@ const App: React.FC = () => {
         if (!selectedFramework) return;
         const subSectionIds = new Set(selectedFramework.sections.flatMap(s => s.subSections.map(ss => ss.id)));
         const frameworkResponses: ResponseState = {};
-        // Fix: Cast `value` to `SubSectionResponse` because Object.entries infers it as `unknown`.
         Object.entries(responses).forEach(([id, value]) => { if (subSectionIds.has(id)) { frameworkResponses[id] = value as SubSectionResponse; }});
         const dataStr = JSON.stringify({ framework: selectedFramework.title, exportDate: new Date().toISOString(), responses: frameworkResponses, }, null, 2);
         const blob = new Blob([dataStr], { type: "application/json" });
@@ -386,6 +387,52 @@ const App: React.FC = () => {
         if (window.confirm("Are you sure you want to delete this framework and all its data? This cannot be undone.")) {
             setFrameworks(frameworks.filter(f => f.id !== frameworkId));
         }
+    };
+
+    const handleAddNewSection = () => {
+        setEditingSection(null);
+        setIsSectionModalOpen(true);
+    };
+
+    const handleEditSection = (section: SectionData) => {
+        setEditingSection(section);
+        setIsSectionModalOpen(true);
+    };
+
+    const handleDeleteSection = (sectionId: string) => {
+        if (!selectedFramework) return;
+        if (window.confirm("Are you sure you want to delete this category and all its questions? This action cannot be undone.")) {
+            setFrameworks(frameworks.map(fw => {
+                if (fw.id !== selectedFrameworkId) return fw;
+                return { ...fw, sections: fw.sections.filter(s => s.id !== sectionId) };
+            }));
+        }
+    };
+
+    const handleSaveSection = (sectionData: Omit<SectionData, 'id' | 'subSections' | 'icon'> & { iconName: keyof typeof icons }) => {
+        if (!selectedFrameworkId) return;
+        const { iconName, ...restOfData } = sectionData;
+        const IconComponent = icons[iconName];
+
+        if (editingSection) {
+            setFrameworks(frameworks.map(fw => {
+                if (fw.id !== selectedFrameworkId) return fw;
+                return { ...fw, sections: fw.sections.map(s => s.id === editingSection.id ? { ...s, ...restOfData, icon: IconComponent } : s) };
+            }));
+        } else {
+            const newSection: SectionData = {
+                id: restOfData.title.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+                subSections: [],
+                ...restOfData,
+                icon: IconComponent,
+            };
+            setFrameworks(frameworks.map(fw => {
+                if (fw.id !== selectedFrameworkId) return fw;
+                return { ...fw, sections: [...fw.sections, newSection] };
+            }));
+        }
+        setIsSectionModalOpen(false);
+        setEditingSection(null);
     };
 
     const handleQuestionChange = useCallback((sectionId: string, subSectionId: string, qIndex: number, updatedQuestion: Question) => {
@@ -551,7 +598,15 @@ const App: React.FC = () => {
                 </div>
                 
                 <div className="mt-8">
-                    <h3 className="text-xl font-bold mb-4 text-dark-text-primary">Audit Categories</h3>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-dark-text-primary">Audit Categories</h3>
+                        {isAdmin && (
+                            <button onClick={handleAddNewSection} className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-semibold rounded-md hover:bg-indigo-700 transition-colors flex items-center gap-1.5">
+                                <PlusIcon className="w-4 h-4" />
+                                Add Category
+                            </button>
+                        )}
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {selectedFramework.sections.map(section => (
                             <SectionCard
@@ -560,6 +615,9 @@ const App: React.FC = () => {
                                 onClick={() => setSelectedSectionId(section.id)}
                                 answered={sectionProgress[section.id]?.answered || 0}
                                 total={sectionProgress[section.id]?.total || 0}
+                                isAdmin={isAdmin}
+                                onEdit={handleEditSection}
+                                onDelete={handleDeleteSection}
                             />
                         ))}
                     </div>
@@ -589,6 +647,15 @@ const App: React.FC = () => {
                     onClose={() => { setIsFrameworkModalOpen(false); setEditingFramework(null); }}
                     onSave={handleSaveFramework}
                     framework={editingFramework}
+                />
+            )}
+
+            {isSectionModalOpen && (
+                <SectionModal
+                    isOpen={isSectionModalOpen}
+                    onClose={() => { setIsSectionModalOpen(false); setEditingSection(null); }}
+                    onSave={handleSaveSection}
+                    section={editingSection}
                 />
             )}
         </div>
