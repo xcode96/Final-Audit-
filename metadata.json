@@ -1,0 +1,5 @@
+{
+  "name": "ISO 27001:2022 Audit Checklist",
+  "description": "A comprehensive interactive checklist for conducting an ISO 27001:2022 gap analysis and audit. Users can track compliance status for each clause and control, add comments, and view a summary of their progress.",
+  "requestFramePermissions": []
+}
