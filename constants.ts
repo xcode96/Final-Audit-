@@ -528,7 +528,7 @@ const enrichQuestions = (questions: (string | Question)[]): Question[] => {
 const ISO_27001_SECTIONS: SectionData[] = [
     {
     "id": "iso-clauses",
-    "title": "ISO :27001 Clauses",
+    "title": "ISO 27001 Clauses",
     "description": "Core requirements for establishing, implementing, maintaining and continually improving an ISMS.",
     "color": "yellow",
     "icon": LockIcon,

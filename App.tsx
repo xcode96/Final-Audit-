@@ -11,6 +11,7 @@ import ProgressBar from './components/ProgressBar';
 import AdminLogin from './AdminLogin';
 import FrameworkModal from './FrameworkModal';
 import SectionModal from './components/SectionModal';
+import SubSectionModal from './components/SubSectionModal';
 import { LogoutIcon, PlusIcon, ShieldIcon, UsersIcon, LockIcon, CodeIcon, OperationIcon, FolderIcon, PeopleIcon, PhysicalSecurityIcon, TechnologicalIcon } from './components/icons';
 
 declare const jspdf: any;
@@ -107,6 +108,9 @@ const App: React.FC = () => {
 
     const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
     const [editingSection, setEditingSection] = useState<SectionData | null>(null);
+    
+    const [isSubSectionModalOpen, setIsSubSectionModalOpen] = useState(false);
+    const [editingSubSection, setEditingSubSection] = useState<SubSectionData | null>(null);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -435,6 +439,67 @@ const App: React.FC = () => {
         setEditingSection(null);
     };
 
+    const handleAddNewSubSection = () => {
+        if (!selectedSectionId) return;
+        setEditingSubSection(null);
+        setIsSubSectionModalOpen(true);
+    };
+    
+    const handleEditSubSection = (subSection: SubSectionData) => {
+        if (!selectedSectionId) return;
+        setEditingSubSection(subSection);
+        setIsSubSectionModalOpen(true);
+    };
+    
+    const handleDeleteSubSection = (subSectionId: string) => {
+        if (!selectedFrameworkId || !selectedSectionId) return;
+        if (window.confirm("Are you sure you want to delete this subsection and all its questions?")) {
+            setFrameworks(prev => prev.map(fw => {
+                if (fw.id !== selectedFrameworkId) return fw;
+                return {
+                    ...fw,
+                    sections: fw.sections.map(s => {
+                        if (s.id !== selectedSectionId) return s;
+                        return { ...s, subSections: s.subSections.filter(ss => ss.id !== subSectionId) };
+                    })
+                };
+            }));
+        }
+    };
+    
+    const handleSaveSubSection = (subSectionData: Omit<SubSectionData, 'id' | 'questions'>) => {
+        if (!selectedFrameworkId || !selectedSectionId) return;
+        
+        setFrameworks(prev => prev.map(fw => {
+            if (fw.id !== selectedFrameworkId) return fw;
+            return {
+                ...fw,
+                sections: fw.sections.map(s => {
+                    if (s.id !== selectedSectionId) return s;
+                    
+                    if (editingSubSection) { // Editing existing
+                        return {
+                            ...s,
+                            subSections: s.subSections.map(ss => 
+                                ss.id === editingSubSection.id ? { ...ss, ...subSectionData } : ss
+                            )
+                        };
+                    } else { // Adding new
+                        const newSubSection: SubSectionData = {
+                            id: subSectionData.title.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+                            questions: [],
+                            ...subSectionData
+                        };
+                        return { ...s, subSections: [...s.subSections, newSubSection] };
+                    }
+                })
+            };
+        }));
+    
+        setIsSubSectionModalOpen(false);
+        setEditingSubSection(null);
+    };
+
     const handleQuestionChange = useCallback((sectionId: string, subSectionId: string, qIndex: number, updatedQuestion: Question) => {
         setFrameworks(prevFrameworks => prevFrameworks.map(fw => {
             if (fw.id !== selectedFrameworkId) return fw;
@@ -562,6 +627,10 @@ const App: React.FC = () => {
                         section={selectedSection}
                         subSectionProgress={subSectionProgress}
                         onSubSectionSelect={(subSectionId) => setSelectedSubSectionId(subSectionId)}
+                        isAdmin={isAdmin}
+                        onAddSubSection={handleAddNewSubSection}
+                        onEditSubSection={handleEditSubSection}
+                        onDeleteSubSection={handleDeleteSubSection}
                     />
                 </div>
             );
@@ -656,6 +725,15 @@ const App: React.FC = () => {
                     onClose={() => { setIsSectionModalOpen(false); setEditingSection(null); }}
                     onSave={handleSaveSection}
                     section={editingSection}
+                />
+            )}
+            
+            {isSubSectionModalOpen && (
+                <SubSectionModal
+                    isOpen={isSubSectionModalOpen}
+                    onClose={() => { setIsSubSectionModalOpen(false); setEditingSubSection(null); }}
+                    onSave={handleSaveSubSection}
+                    subSection={editingSubSection}
                 />
             )}
         </div>
