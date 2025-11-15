@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { INITIAL_FRAMEWORKS } from './constants';
 import type { ResponseState, SectionData, Question, QuestionResponse, SubSectionData, ResultStatus, Framework, SubSectionResponse, GitHubSettings, SyncedData, SerializableFramework, SerializableSectionData } from './types';
@@ -124,9 +125,13 @@ const App: React.FC = () => {
     const [frameworks, setFrameworks] = useState<Framework[]>(() => {
         try {
             const saved = localStorage.getItem('audit-frameworks');
-            return saved ? JSON.parse(saved) : INITIAL_FRAMEWORKS;
+            if (saved) {
+                // Data in local storage is serialized, so we must deserialize it on load.
+                return deserializeFrameworks(JSON.parse(saved));
+            }
+            return INITIAL_FRAMEWORKS;
         } catch (error) {
-            console.error("Error parsing frameworks from localStorage", error);
+            console.error("Error parsing/deserializing frameworks from localStorage", error);
             return INITIAL_FRAMEWORKS;
         }
     });
@@ -162,7 +167,9 @@ const App: React.FC = () => {
     
     useEffect(() => {
         if (isAdmin) {
-            localStorage.setItem('audit-frameworks', JSON.stringify(frameworks));
+            // Serialize frameworks before saving to localStorage to handle non-JSON-friendly data like components.
+            const serializableFrameworks = serializeFrameworks(frameworks);
+            localStorage.setItem('audit-frameworks', JSON.stringify(serializableFrameworks));
         }
     }, [frameworks, isAdmin]);
 
